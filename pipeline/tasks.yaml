@@ -1,0 +1,14 @@
+settings:
+  max_participants: 4          # максимум участников в команде (нужен для стабильных NodePWebSocket)
+  pod_cidr: 10.42.0.0/16      # CIDR подов вашего кластера (kind/flannel: 10.244.0.0/16, k3s: ort)
+  node_port_base: 30000        # с этого порта выдаются NodePort (2 на каждый под: задача + 10.42.0.0/16)
+  helper_image: ctf-sidecar:1  # образ sidecar, собирается через make build
+  image_pull_policy: IfNotPresent
+  internet_egress: true        # разрешить подам выход в интернет (не в частные сети)
+  checker_url: ""              # куда sidecar шлёт POST после решения; пусто = не слать
+  checker_namespace: ""        # namespace чекера, чтобы открыть к нему egress (если checker_url задан)
+
+tasks:
+  - name: level1
+    image: challenge-web:level-1
+    port: 5000
