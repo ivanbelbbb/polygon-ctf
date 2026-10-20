@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 import urllib.request
 
 from websockets.asyncio.server import serve
@@ -23,6 +24,7 @@ PARTICIPANT = os.environ.get("PARTICIPANT", "?")
 TASK_NAME = os.environ["TASK_NAME"]
 SECRET = os.environ["SECRET"].encode()
 CHECKER_URL = os.environ.get("CHECKER_URL", "")
+CHECKER_KEY = os.environ.get("CHECKER_KEY", "").encode()
 PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "<NODE_IP>")
 WS_NODE_PORT = os.environ.get("WS_NODE_PORT", "<WS_NODEPORT>")
 WS_PORT = int(os.environ.get("WS_PORT", "8765"))
@@ -95,10 +97,14 @@ def notify_checker() -> None:
     global _notified
     if not CHECKER_URL or _notified:
         return
+    ts = int(time.time())
     body = json.dumps({"team": TEAM, "participant": PARTICIPANT,
-                       "task": TASK_NAME, "status": "solved"}).encode()
+                       "task": TASK_NAME, "status": "solved", "ts": ts}).encode()
+    sig = hmac.new(CHECKER_KEY, f"{TEAM}:{PARTICIPANT}:{TASK_NAME}:{ts}".encode(),
+                   hashlib.sha256).hexdigest()
     req = urllib.request.Request(
-        CHECKER_URL, data=body, headers={"Content-Type": "application/json"}, method="POST"
+        CHECKER_URL, data=body, method="POST",
+        headers={"Content-Type": "application/json", "X-Signature": sig},
     )
     try:
         urllib.request.urlopen(req, timeout=5).read()

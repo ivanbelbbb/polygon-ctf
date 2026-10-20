@@ -1,0 +1,112 @@
+# Postgres + checker в namespace ctf-system. Оба пода закреплены на worker (VXLAN между нодами не используем).
+# Перед применением замените worker (см. команду в инструкции) и создайте Secret'ы pg и checker-key
+# и ConfigMap pg-schema (команды в инструкции).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ctf-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: postgres, namespace: ctf-system}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: postgres}}
+  template:
+    metadata: {labels: {app: postgres}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: worker}
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports: [{containerPort: 5432}]
+          env:
+            - {name: POSTGRES_USER, value: ctf}
+            - {name: POSTGRES_DB, value: ctf}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: pg, key: password}}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: schema, mountPath: /docker-entrypoint-initdb.d}   # выполняется только на пустой БД
+      volumes:
+        - name: data
+          hostPath: {path: /var/lib/ctf-postgres, type: DirectoryOrCreate}
+        - name: schema
+          configMap: {name: pg-schema}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: postgres, namespace: ctf-system}
+spec:
+  selector: {app: postgres}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: checker, namespace: ctf-system}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: checker}}
+  template:
+    metadata: {labels: {app: checker}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: worker}
+      automountServiceAccountToken: false
+      containers:
+        - name: checker
+          image: ctf-checker:1
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8000}]
+          env:
+            - {name: PGHOST, value: postgres}
+            - {name: PGUSER, value: ctf}
+            - {name: PGDATABASE, value: ctf}
+            - name: PGPASSWORD
+              valueFrom: {secretKeyRef: {name: pg, key: password}}
+            - name: CHECKER_KEY
+              valueFrom: {secretKeyRef: {name: checker-key, key: key}}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8000}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: checker, namespace: ctf-system}
+spec:
+  selector: {app: checker}
+  ports: [{port: 8000, targetPort: 8000}]
+---
+# egress команд открыт на весь namespace ctf-system, поэтому БД закрываем здесь:
+# к Postgres можно только из пода checker, к checker только на порт 8000.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: postgres-only-from-checker, namespace: ctf-system}
+spec:
+  podSelector: {matchLabels: {app: postgres}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app: checker}}}]
+      ports: [{protocol: TCP, port: 5432}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: checker-ingress, namespace: ctf-system}
+spec:
+  podSelector: {matchLabels: {app: checker}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{namespaceSelector: {}}]
+      ports: [{protocol: TCP, port: 8000}]

@@ -164,6 +164,7 @@ def build_deployment(task, name, namespace, team, participant, ws_node_port,
                                 {"name": "WS_NODE_PORT", "value": str(ws_node_port)},
                                 {"name": "WS_PORT", "value": str(WS_PORT)},
                                 {"name": "LOG_DIR", "value": HELPER_LOG_DIR},
+                                {"name": "CHECKER_KEY", "valueFrom": {"secretKeyRef": {"name": "checker-key", "key": "secret", "optional": True}}},
                             ],
                             "resources": {"limits": {"cpu": "200m", "memory": "128Mi"}},
                             "securityContext": helper_security,
@@ -273,7 +274,13 @@ def deploy_team(team, participants, all_tasks, selected, settings, public_host):
         if e.status != 409:
             raise
         print(f"[=] Namespace '{namespace}' уже есть")
-
+    if os.environ.get("CHECKER_KEY"):
+        try:
+            core_v1.create_namespaced_secret(namespace, build_secret(
+                "checker-key", namespace, {"ctf/team": str(team)}, os.environ["CHECKER_KEY"]))
+        except ApiException as e:
+            if e.status != 409:
+                raise
     for pol in build_network_policies(namespace, settings, [t["port"] for t in all_tasks]):
         apply(net_v1.create_namespaced_network_policy, net_v1.patch_namespaced_network_policy,
               pol["metadata"]["name"], namespace, pol)
