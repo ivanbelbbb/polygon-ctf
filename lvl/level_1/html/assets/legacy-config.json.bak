@@ -1,0 +1,9 @@
+{
+  "service": "inventory-api",
+  "environment": "staging",
+  "debug": true,
+  "internal_api": "http://inventory-api:8080",
+  "deployment_note": "This backup should not be publicly served.",
+  "demo_token": "NOT-A-REAL-SECRET",
+  "УЯЗВИМОСТЬ ОБНАРУЖЕНА" : "ПОЗДРАВЛЯЮ ВЫ НАШЛИ ФАЙЛ КОТОРЫЙ АДМИН ОШИБОЧНО ДОБАВИЛ В ФАЙЛЫ ДЛЯ ВЕБ-СЕРВЕРА"
+}

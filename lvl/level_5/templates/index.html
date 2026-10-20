@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Polygon — комментарии</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    form { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.5rem; }
+    input[type=text], textarea { padding: .5rem; font: inherit; }
+    textarea { min-height: 4rem; resize: vertical; }
+    button { padding: .5rem 1rem; align-self: flex-start; }
+    ul.comments { list-style: none; padding: 0; }
+    ul.comments li { border-bottom: 1px solid #ddd; padding: .75rem 0; }
+    .meta { display: flex; justify-content: space-between; font-size: .85rem; color: #555; }
+    .date { color: #888; }
+    .body { margin-top: .25rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Комментарии</h1>
+
+  <form method="post" action="/comment">
+    <input type="text" name="author" placeholder="Ваше имя" maxlength="80">
+    <textarea name="body" placeholder="Комментарий" required></textarea>
+    <button type="submit">Отправить</button>
+  </form>
+
+  <ul class="comments">
+    {% for c in comments %}
+    <li>
+      <div class="meta">
+        <strong>{{ c["author"] }}</strong>
+        <span class="date">{{ c["created_at"] }}</span>
+      </div>
+      <!-- Уязвимость: содержимое комментария вставляется без экранирования -->
+      <div class="body">{{ c["body"] | safe }}</div>
+    </li>
+    {% else %}
+    <li>Пока нет комментариев</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

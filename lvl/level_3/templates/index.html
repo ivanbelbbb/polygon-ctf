@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Polygon — справочник сотрудников</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; }
+    form { display: flex; gap: .5rem; margin-bottom: 1rem; }
+    input[type=text] { flex: 1; padding: .5rem; }
+    button { padding: .5rem 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #ddd; padding: .5rem; text-align: left; }
+    .error { color: #b00020; }
+    .solved { background: #e6f4ea; border: 1px solid #34a853; padding: .75rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Справочник сотрудников</h1>
+
+  <form method="get" action="/">
+    <input type="text" name="q" value="{{ search }}" placeholder="Поиск по имени">
+    <button type="submit">Найти</button>
+  </form>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if solved %}<div class="solved">Задание пройдено: получена защищённая запись.</div>{% endif %}
+
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Имя</th><th>Отдел</th><th>Email</th><th>Доступ</th></tr>
+    </thead>
+    <tbody>
+      {% for e in employees %}
+      <tr>
+        <td>{{ e["id"] }}</td>
+        <td>{{ e["name"] }}</td>
+        <td>{{ e["department"] }}</td>
+        <td>{{ e["email"] }}</td>
+        <td>{{ e["access_level"] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Ничего не найдено</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

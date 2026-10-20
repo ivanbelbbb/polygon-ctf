@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>POLYGON Bank — Личный кабинет</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="topbar">
+        <a href="/" class="brand">
+            <span class="brand-symbol">p</span>
+            <span>polygon<span class="brand-light">bank</span></span>
+        </a>
+
+        <div class="topbar-right">
+            <span class="demo-label">ДЕМО-РЕЖИМ</span>
+            <div class="avatar">{{ user.initials }}</div>
+            <span class="user-name">{{ user.name }}</span>
+            <button class="icon-button" aria-label="Уведомления">♧</button>
+        </div>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <p class="nav-caption">МЕНЮ</p>
+            <a class="nav-item active" href="/"> <span>⌂</span> Главная</a>
+            <a class="nav-item" href="#cards"><span>▣</span> Мои карты</a>
+            <a class="nav-item" href="#operations"><span>↕</span> История операций</a>
+            <a class="nav-item" href="#cards"><span>⇄</span> Переводы</a>
+
+            <div class="sidebar-bottom">
+                <div class="help-icon">?</div>
+                <div>
+                    <strong>Нужна помощь?</strong>
+                    <p>Мы на связи</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="greeting">
+                <div>
+                    <p class="date-label">ЛИЧНЫЙ КАБИНЕТ</p>
+                    <h1>Привет, {{ user.name }}!</h1>
+                    <p class="subtitle">Всё самое важное о твоих финансах — здесь.</p>
+                </div>
+                <div class="profile-chip">
+                    <span class="profile-status"></span>
+                    Аккаунт активен
+                </div>
+            </div>
+
+            <section class="overview-grid">
+                <div class="balance-panel">
+                    <div class="panel-heading">
+                        <span>Общий баланс</span>
+                        <button class="plain-button" aria-label="Настройки баланса">•••</button>
+                    </div>
+                    <div class="total-balance">128 450 <span>₽</span></div>
+                    <p class="balance-note">
+                        <span class="balance-dot"></span>
+                        Доступно на счетах
+                    </p>
+
+                    <div class="balance-bottom">
+                        <div>
+                            <span class="small-label">СЧЁТ</span>
+                            <strong>•• 4821</strong>
+                        </div>
+                        <div>
+                            <span class="small-label">ВАЛЮТА</span>
+                            <strong>RUB · ₽</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-section" id="cards">
+                    <div class="section-top">
+                        <div>
+                            <span class="section-overline">ВАША КАРТА</span>
+                            <h2>Дебетовая карта</h2>
+                        </div>
+                        <span class="card-type">DEBIT</span>
+                    </div>
+
+                    <div class="bank-card">
+                        <div class="bank-card-top">
+                            <span class="card-brand">polygon<span>bank</span></span>
+                            <span class="contactless">)))</span>
+                        </div>
+
+                        <div class="chip">
+                            <div></div><div></div><div></div>
+                            <div></div><div></div><div></div>
+                        </div>
+
+                        <div class="card-number">5555&nbsp; ••••&nbsp; ••••&nbsp; 4821</div>
+
+                        <div class="bank-card-bottom">
+                            <div>
+                                <span class="card-meta">ВЛАДЕЛЕЦ КАРТЫ</span>
+                                <strong>{{ user.name|upper }}</strong>
+                            </div>
+                            <div class="card-network">DEMO</div>
+                        </div>
+                        <div class="card-orb orb-one"></div>
+                        <div class="card-orb orb-two"></div>
+                    </div>
+
+                    <p class="card-footnote">Учебная карта · не является платёжным средством</p>
+                </div>
+            </section>
+
+            <section class="operations-section" id="operations">
+                <div class="section-header">
+                    <div>
+                        <span class="section-overline">ФИНАНСЫ</span>
+                        <h2>Последние операции</h2>
+                    </div>
+                    <span class="operation-count">{{ invoices|length }} операции</span>
+                </div>
+
+                <div class="operations-card">
+                    {% for invoice_id, invoice in invoices %}
+                    <a class="operation-row"
+                       href="{{ url_for('invoice_detail', invoice_id=invoice_id) }}">
+                        <div class="operation-icon {% if invoice.status == 'Оплачен' %}icon-red{% else %}icon-yellow{% endif %}">
+                            {% if invoice.status == 'Оплачен' %}↗{% else %}◷{% endif %}
+                        </div>
+
+                        <div class="operation-info">
+                            <strong>{{ invoice.item }}</strong>
+                            <span>
+                                {% if invoice.status == 'Оплачен' %}
+                                    Оплата картой · {{ invoice.date }}
+                                {% else %}
+                                    Счёт на оплату · {{ invoice.date }}
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        <div class="operation-right">
+                            <strong>{{ invoice.amount }}</strong>
+                            <span class="transaction-status
+                                {% if invoice.status == 'Оплачен' %}status-paid{% else %}status-pending{% endif %}">
+                                {{ invoice.status }}
+                            </span>
+                        </div>
+
+                        <span class="row-arrow">›</span>
+                    </a>
+                    {% else %}
+                    <div class="empty-state">Пока нет операций</div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <footer>
+                <span>POLYGON BANK <span class="footer-dot">•</span> УЧЕБНАЯ СРЕДА</span>
+                <span>Интерфейс для CTF-лаборатории</span>
+            </footer>
+        </main>
+    </div>
+</body>
+</html>
