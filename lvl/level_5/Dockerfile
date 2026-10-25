@@ -7,6 +7,7 @@ RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app /data
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV LOG_DIR=/app/logs
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \

@@ -21,7 +21,14 @@ CREATE TABLE tasks (
   level  int  NOT NULL DEFAULT 1,
   points int  NOT NULL DEFAULT 100
 );
-INSERT INTO tasks (name, track, level, points) VALUES ('level1', 'web', 1, 100);
+-- Начальный набор задач (те же значения, что в tasks_seed.sql для уже работающей БД)
+INSERT INTO tasks (name, track, level, points) VALUES
+  ('level0', 'web', 0,  50),
+  ('level1', 'web', 1, 100),
+  ('level2', 'web', 2, 150),
+  ('level3', 'web', 3, 200),
+  ('level4', 'web', 4, 250),
+  ('level5', 'web', 5, 300);
 
 -- Засчитанные решения. participant_id = кто из команды решил первым (индивидуальный зачёт).
 CREATE TABLE solves (

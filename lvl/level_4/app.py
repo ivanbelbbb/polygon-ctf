@@ -51,7 +51,7 @@ def ping():
 
         # если токен в stdout - уязвимость нашли
         if probe in result.stdout:
-            report_success()
+            report_success("level-4-command-injection")
 
         output = result.stdout + result.stderr
 

@@ -8,10 +8,36 @@ settings:
   checker_url: "http://checker.ctf-system.svc:8000/solved"              # куда sidecar шлёт POST после решения; пусто = не слать
   checker_namespace: "ctf-system"        # namespace чекера, чтобы открыть к нему egress (если checker_url задан)
 
+# ВАЖНО: NodePort считается по порядку и числу задач в этом списке (см. node_ports в deploy.py).
+# Добавление или перестановка задач сдвигает порты уже развёрнутых команд - перед этим make clean TEAM=N.
+# Без --task (make deploy TASK=levelN) деплоятся ВСЕ задачи сразу; пока нет Operator, выдавайте по одной.
 tasks:
-  - name: level1
+  - name: level0              # HTTP recon
+    image: challenge-web:level-0
+    port: 5000
+
+  - name: level1              # information disclosure (nginx)
     image: challenge-web:level-1
     port: 5000
+
+  - name: level2              # IDOR
+    image: challenge-web:level-2
+    port: 5000
+
+  - name: level3              # SQL injection
+    image: challenge-web:level-3
+    port: 5000
+
+  - name: level4              # command injection
+    image: challenge-web:level-4
+    port: 5000
+
+  - name: level5              # XSS (внутри headless Chromium, 128Mi по умолчанию не хватит)
+    image: challenge-web:level-5
+    port: 5000
+    resources:
+      requests: {cpu: 200m, memory: 512Mi}
+      limits: {cpu: "1", memory: 1Gi}
 
   # Примеры из старого tasks.yaml. Эти образы сами не пишут [FLAG_SUCCESS]
   # в /app/logs/flags.log, поэтому sidecar ничего не выдаст, пока их не доработать.

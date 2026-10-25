@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-ENV LOG_DIR = /app/logs
+ENV LOG_DIR=/app/logs
 
 RUN useradd --create-home --uid 10001 appuser \
     &&  mkdir -p /app/logs \
