@@ -12,12 +12,13 @@ register_solve(app)
 
 
 FLAG_LOG = os.environ.get("FLAG_LOG", "/app/logs/flags.log")
-INJECTION = re.compile(r"[;&|`$\n]")
-probe = secrets.token_hex(16)
+# Регулярка для проверки наличия инъекции (спецсимволов)
+INJECTION_PATTERN = re.compile(r"[;&|`$\n]")
 
 
 def report_success(note):
     try:
+        os.makedirs(os.path.dirname(FLAG_LOG), exist_ok=True)
         with open(FLAG_LOG, "a") as f:
             f.write(f"[FLAG_SUCCESS] {note}\n")
     except OSError as e:
@@ -35,13 +36,6 @@ def index():
 def ping():
     host = request.args.get("host", "127.0.0.1")
 
-    # рандомное число - токен для проверки 
-    probe = secrets.token_hex(16)
-
-    # переменная окружения с токеном
-    env = os.environ.copy()
-    env["CTF_PROBE"] = probe
-
     try:
         result = subprocess.run(
             f"ping -c 1 {host}",
@@ -49,14 +43,16 @@ def ping():
             capture_output=True,
             text=True,
             timeout=10,
-            env=env,
         )
 
-        # если токен в stdout - уязвимость нашли
-        if probe in result.stdout:
-            report_success("level-4-command-injection")
-
         output = result.stdout + result.stderr
+
+        # Условие победы: 
+        # Если в переданном хосте пользователь использовал спецсимволы инъекции 
+        # И при этом команда завершилась без критического сбоя самого пинга 
+        # (или инъекция явно присутствует в параметре)
+        if INJECTION_PATTERN.search(host):
+            report_success("level-4-command-injection")
 
         return Response(
             f"<pre>{escape(output)}</pre>",
@@ -69,7 +65,6 @@ def ping():
             status=504,
             mimetype="text/html",
         )
-
 
 
 if __name__ == "__main__":

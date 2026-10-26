@@ -1,9 +1,26 @@
-{
-  "service": "inventory-api",
-  "environment": "staging",
-  "debug": true,
-  "internal_api": "http://inventory-api:8080",
-  "deployment_note": "This backup should not be publicly served.",
-  "demo_token": "NOT-A-REAL-SECRET",
-  "УЯЗВИМОСТЬ ОБНАРУЖЕНА" : "ПОЗДРАВЛЯЮ ВЫ НАШЛИ ФАЙЛ КОТОРЫЙ АДМИН ОШИБОЧНО ДОБАВИЛ В ФАЙЛЫ ДЛЯ ВЕБ-СЕРВЕРА"
-}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Legacy Config Backup</title>
+    <style>
+        body { background-color: #1e1e1e; color: #d4d4d4; font-family: monospace; padding: 20px; }
+        pre { background: #252526; padding: 15px; border-radius: 5px; border: 1px solid #333; }
+        .key { color: #9cdcfe; }
+        .string { color: #ce9178; }
+        .boolean { color: #569cd6; }
+    </style>
+</head>
+<body>
+    <h2>⚠️ Legacy Configuration Backup</h2>
+    <pre>{
+  <span class="key">"service"</span>: <span class="string">"inventory-api"</span>,
+  <span class="key">"environment"</span>: <span class="string">"staging"</span>,
+  <span class="key">"debug"</span>: <span class="boolean">true</span>,
+  <span class="key">"internal_api"</span>: <span class="string">"http://inventory-api:8080"</span>,
+  <span class="key">"deployment_note"</span>: <span class="string">"This backup should not be publicly served."</span>,
+  <span class="key">"demo_token"</span>: <span class="string">"NOT-A-REAL-SECRET"</span>,
+  <span class="key">"УЯВЗИМОСТЬ ОБНАРУЖЕНА"</span>: <span class="string">"ПОЗДРАВЛЯЮ ВЫ НАШЛИ ФАЙЛ КОТОРЫЙ АДМИН ОШИБОЧНО ДОБАВИЛ В ФАЙЛЫ ДЛЯ ВЕБ-СЕРВЕРА"</span>
+}</pre>
+</body>
+</html>
