@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: ctf-operator, namespace: ctf-system}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: ctf-operator}}
+  template:
+    metadata: {labels: {app: ctf-operator}}
+    spec:
+      serviceAccountName: ctf-operator
+      nodeSelector: {kubernetes.io/hostname: WORKER_NODE}
+      containers:
+        - name: operator
+          image: ctf-operator:1
+          imagePullPolicy: IfNotPresent
+          env:
+            - {name: PUBLIC_HOST, value: "PUBLIC_HOST_PLACEHOLDER"}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+# Понедельник 00:00 UTC: откатывает всех участников к baseLevel. Пересборку подов делает
+# Operator сам, реагируя на изменение status.currentLevel у ParticipantChallenge.
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: ctf-weekly-reset, namespace: ctf-system}
+spec:
+  schedule: "0 0 * * 1"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: ctf-weekly-reset
+          restartPolicy: Never
+          containers:
+            - name: weekly-reset
+              image: ctf-operator:1
+              imagePullPolicy: IfNotPresent
+              command: ["python", "weekly_reset.py"]
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                capabilities: {drop: [ALL]}

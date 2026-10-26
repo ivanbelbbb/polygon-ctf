@@ -1,0 +1,76 @@
+# Три ServiceAccount в ctf-system, каждый с минимально нужными правами:
+#   ctf-operator     - читает/пишет ParticipantChallenge везде (кластерный CRD) и ТОЛЬКО
+#                      Deployment/Service/Secret внутри namespace конкретной команды
+#                      (права на это даёт не этот файл, а RoleBinding, который создаёт
+#                      pipeline/deploy.py при создании namespace team-N).
+#   checker          - читает ParticipantChallenge и меняет только status.currentLevel
+#                      (не может создавать/удалять CR, не видит Deployment/Secret вообще).
+#   ctf-weekly-reset - то же самое, что checker, только используется CronJob'ом сброса.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: ctf-operator, namespace: ctf-system}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: checker, namespace: ctf-system}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: ctf-weekly-reset, namespace: ctf-system}
+---
+# Полные права на сам CRD (не на Deployment/Service) - кластерные, т.к. namespace команд
+# создаются динамически и Operator должен увидеть новый ParticipantChallenge сразу.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: ctf-participantchallenges-admin}
+rules:
+  - apiGroups: [ctf.example.org]
+    resources: [participantchallenges]
+    verbs: [get, list, watch, create, patch, update, delete]
+  - apiGroups: [ctf.example.org]
+    resources: [participantchallenges/status]
+    verbs: [get, patch, update]
+---
+# Урезанная версия для checker и CronJob: видеть CR и двигать прогресс, не более.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: ctf-participantchallenges-progress}
+rules:
+  - apiGroups: [ctf.example.org]
+    resources: [participantchallenges]
+    verbs: [get, list, watch]
+  - apiGroups: [ctf.example.org]
+    resources: [participantchallenges/status]
+    verbs: [get, patch, update]
+---
+# Используется RoleBinding'ом, который deploy.py создаёт ВНУТРИ каждого team-N namespace -
+# поэтому хоть ClusterRole и один на всех, реальные права Operator получает только там, где
+# для него явно создали RoleBinding, а не во всём кластере.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: ctf-operator-workloads}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, create, patch, update, delete]
+  - apiGroups: [""]
+    resources: [services, secrets]
+    verbs: [get, list, watch, create, patch, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: ctf-operator-crd}
+subjects: [{kind: ServiceAccount, name: ctf-operator, namespace: ctf-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: ctf-participantchallenges-admin}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: checker-progress}
+subjects: [{kind: ServiceAccount, name: checker, namespace: ctf-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: ctf-participantchallenges-progress}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: weekly-reset-progress}
+subjects: [{kind: ServiceAccount, name: ctf-weekly-reset, namespace: ctf-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: ctf-participantchallenges-progress}

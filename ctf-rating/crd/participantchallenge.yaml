@@ -1,0 +1,72 @@
+# Уровень растёт у каждого УЧАСТНИКА отдельно (не у команды целиком), поэтому CR - на участника.
+# team/participant дублируют namespace/имя CR для удобства чтения (kubectl get -o wide) и для
+# чекера, который находит CR по этим полям, а не по имени namespace+CR вручную.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: participantchallenges.ctf.example.org
+spec:
+  group: ctf.example.org
+  scope: Namespaced
+  names:
+    plural: participantchallenges
+    singular: participantchallenge
+    kind: ParticipantChallenge
+    shortNames: [pc]
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Team
+          type: integer
+          jsonPath: .spec.team
+        - name: Participant
+          type: integer
+          jsonPath: .spec.participant
+        - name: Level
+          type: integer
+          jsonPath: .status.currentLevel
+        - name: Max
+          type: integer
+          jsonPath: .spec.maxLevel
+        - name: Week
+          type: string
+          jsonPath: .status.weekStart
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [team, participant]
+              properties:
+                team:
+                  type: integer
+                  minimum: 1
+                participant:
+                  type: integer
+                  minimum: 1
+                track:
+                  type: string
+                  default: web
+                baseLevel:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                maxLevel:
+                  type: integer
+                  minimum: 0
+                  default: 5
+            status:
+              type: object
+              properties:
+                currentLevel:
+                  type: integer
+                weekStart:
+                  type: string
+                lastCaptureAt:
+                  type: string

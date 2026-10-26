@@ -1,15 +1,23 @@
-"""Checker: принимает уведомления от sidecar и пишет решения в Postgres.
+"""Checker: принимает уведомления от sidecar, пишет решения в Postgres и двигает прогресс
+участника (ParticipantChallenge.status.currentLevel) через Kubernetes API.
 
 Запрос sidecar подписан HMAC-SHA256 общим ключом CHECKER_KEY (лежит только в Secret,
 смонтированном в sidecar; контейнер задачи его не видит). Без подписи любой
 скомпрометированный под мог бы начислить очки чужой команде.
-Подключение к БД берётся из переменных PGHOST/PGUSER/PGPASSWORD/PGDATABASE.
+
+Две независимые вещи происходят при валидном решении:
+  - очки команде (team-score): одно решение на задачу на команду за неделю, см. process();
+  - прогресс участника (level progression): у КАЖДОГО участника свой уровень, продвигается
+    при любом валидном решении его ТЕКУЩЕГО уровня, вне зависимости от того, получила ли
+    команда очки (кто-то другой из команды мог решить эту же задачу раньше) - см. bump_level().
 """
 import hashlib
 import hmac
 import os
+import re
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
@@ -20,6 +28,49 @@ from pydantic import BaseModel, Field
 KEY = os.environ["CHECKER_KEY"].encode()
 MAX_SKEW = 300  # секунд допустимого расхождения часов
 pool = ConnectionPool(conninfo="", min_size=1, max_size=5, open=False)
+
+# ---------- Kubernetes: прогресс участника ----------
+GROUP, CRD_VERSION, PLURAL = "ctf.example.org", "v1", "participantchallenges"
+TASK_PREFIX = os.environ.get("TASK_PREFIX", "level")
+LEVEL_RE = re.compile(rf"^{re.escape(TASK_PREFIX)}(\d+)$")
+
+try:
+    from kubernetes import client as k8s_client, config as k8s_config
+    k8s_config.load_incluster_config()
+    CUSTOM_API = k8s_client.CustomObjectsApi()
+except Exception as e:  # нет кластера рядом (например, локальный тест) - прогресс просто не ведём
+    CUSTOM_API = None
+    print(f"[checker] Kubernetes API недоступен, прогресс уровней отключён: {e}", flush=True)
+
+
+def bump_level(team: int, participant: int, task: str) -> None:
+    """Поднимает currentLevel участника на 1, если task совпадает с его ТЕКУЩИМ уровнем.
+    Решение чужого/старого уровня (что физически не должно происходить - см. ниже) и попытка
+    поднять выше maxLevel молча игнорируются. Любая ошибка API не должна ронять /solved -
+    команда всё равно получит свои очки, даже если прогресс обновить не удалось."""
+    if CUSTOM_API is None:
+        return
+    m = LEVEL_RE.fullmatch(task)
+    if not m:
+        return  # задача вне схемы level0..levelN (на будущее, для других треков)
+    solved_level = int(m.group(1))
+    namespace, name = f"team-{team}", f"p{participant}"
+    try:
+        cr = CUSTOM_API.get_namespaced_custom_object(GROUP, CRD_VERSION, namespace, PLURAL, name)
+        current = (cr.get("status") or {}).get("currentLevel")
+        max_level = (cr.get("spec") or {}).get("maxLevel", solved_level)
+        # Секрет (и значит токен sidecar) перевыпускается при КАЖДОЙ смене уровня, поэтому
+        # валидно подписанный запрос физически не может прийти для уровня, который уже не
+        # активен у участника - эта проверка лишь вторая, дешёвая линия защиты.
+        if current != solved_level or current >= max_level:
+            return
+        CUSTOM_API.patch_namespaced_custom_object_status(
+            GROUP, CRD_VERSION, namespace, PLURAL, name,
+            {"status": {"currentLevel": current + 1,
+                        "lastCaptureAt": datetime.now(timezone.utc).isoformat()}})
+    except Exception as e:
+        print(f"[checker] bump_level(team={team}, participant={participant}, task={task}) "
+             f"не удался: {e}", flush=True)
 
 
 @asynccontextmanager
@@ -89,6 +140,11 @@ def solved(body: Solved, request: Request, x_signature: str = Header(default="")
     # коммит происходит при выходе из with, поэтому событие пишется и для отказов
     with pool.connection() as conn, conn.cursor() as cur:
         code, data = process(cur, src, body, x_signature)
+    if code == 200:
+        # вне транзакции БД: прогресс участника не должен держать соединение к Postgres
+        # открытым на время похода в Kubernetes API, а неудача здесь не должна портить
+        # уже сохранённый результат по очкам
+        bump_level(body.team, body.participant, body.task)
     return JSONResponse(data, status_code=code)
 
 

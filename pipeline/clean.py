@@ -1,12 +1,19 @@
 """Удаление команды (весь namespace) или одного участника.
 
   python3 clean.py --team 1                  # весь namespace team-1
-  python3 clean.py --team 1 --participant 2  # только участник 2 (Deployment, Service, Secret)
+  python3 clean.py --team 1 --participant 2  # только участник 2 (ParticipantChallenge CR;
+                                              #  Deployment/Service/Secret участника Kubernetes
+                                              #  удалит сам через ownerReferences, которые на них
+                                              #  ставит Operator)
 """
 import argparse
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+
+GROUP = "ctf.example.org"
+VERSION = "v1"
+PLURAL = "participantchallenges"
 
 
 def ignore_404(fn, what):
@@ -28,7 +35,7 @@ def main():
 
     config.load_kube_config()
     core_v1 = client.CoreV1Api()
-    apps_v1 = client.AppsV1Api()
+    custom_api = client.CustomObjectsApi()
     namespace = f"team-{args.team}"
 
     if args.participant is None:
@@ -36,17 +43,10 @@ def main():
         print("Удаление namespace идёт в фоне, подождите пару десятков секунд.")
         return
 
-    sel = f"ctf/team={args.team},ctf/participant={args.participant}"
-    # Service не поддерживает deletecollection, поэтому удаляем по одному
-    for d in apps_v1.list_namespaced_deployment(namespace, label_selector=sel).items:
-        ignore_404(lambda n=d.metadata.name: apps_v1.delete_namespaced_deployment(n, namespace),
-                   f"Deployment '{d.metadata.name}'")
-    for s in core_v1.list_namespaced_service(namespace, label_selector=sel).items:
-        ignore_404(lambda n=s.metadata.name: core_v1.delete_namespaced_service(n, namespace),
-                   f"Service '{s.metadata.name}'")
-    for s in core_v1.list_namespaced_secret(namespace, label_selector=sel).items:
-        ignore_404(lambda n=s.metadata.name: core_v1.delete_namespaced_secret(n, namespace),
-                   f"Secret '{s.metadata.name}'")
+    name = f"p{args.participant}"
+    ignore_404(lambda: custom_api.delete_namespaced_custom_object(
+        GROUP, VERSION, namespace, PLURAL, name), f"ParticipantChallenge '{name}'")
+    print("Deployment/Service/Secret этого участника Kubernetes удалит сам (owner references).")
 
 
 if __name__ == "__main__":

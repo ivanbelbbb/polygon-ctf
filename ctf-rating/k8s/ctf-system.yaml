@@ -1,6 +1,6 @@
 # Postgres + checker в namespace ctf-system. Оба пода закреплены на worker (VXLAN между нодами не используем).
 # Перед применением замените worker (см. команду в инструкции) и создайте Secret'ы pg и checker-key
-# и ConfigMap pg-schema (команды в инструкции).
+# и ConfigMap pg-schema (команды в инструкции). RBAC (ServiceAccount checker) - в rbac.yaml.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -57,7 +57,9 @@ spec:
     metadata: {labels: {app: checker}}
     spec:
       nodeSelector: {kubernetes.io/hostname: worker}
-      automountServiceAccountToken: false
+      # checker ходит в K8s API, чтобы двигать прогресс участника (см. rbac.yaml) -
+      # поэтому, в отличие от postgres, свой ServiceAccount и смонтированный токен
+      serviceAccountName: checker
       containers:
         - name: checker
           image: ctf-checker:1
