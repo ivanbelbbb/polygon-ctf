@@ -74,3 +74,19 @@ kind: ClusterRoleBinding
 metadata: {name: weekly-reset-progress}
 subjects: [{kind: ServiceAccount, name: ctf-weekly-reset, namespace: ctf-system}]
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: ctf-participantchallenges-progress}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: ctf-operator-crd-introspect}
+rules:
+  # kopf сам читает описание СВОЕГО CRD при старте (версии, subresources) - без этого
+  # он не может даже начать следить за ParticipantChallenge
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: ctf-operator-crd-introspect}
+subjects: [{kind: ServiceAccount, name: ctf-operator, namespace: ctf-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: ctf-operator-crd-introspect}
