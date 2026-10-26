@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 *.tar
+
+# общий код кнопки копируется в контекст сборки уровней (make build-levels)
+lvl/level_*/common/

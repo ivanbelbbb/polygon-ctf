@@ -19,10 +19,14 @@ build: build-sidecar build-levels
 build-sidecar:
 	docker build -t ctf-sidecar:1 sidecar/
 
+# common/ (кнопка «Сдать задачу») копируется в контекст каждого уровня на время сборки
 build-levels:
 	@for n in $(LEVELS); do \
 		echo "== challenge-web:level-$$n"; \
-		docker build -t challenge-web:level-$$n lvl/level_$$n/ || exit 1; \
+		rm -rf lvl/level_$$n/common; cp -r common lvl/level_$$n/common; \
+		docker build -t challenge-web:level-$$n lvl/level_$$n/; rc=$$?; \
+		rm -rf lvl/level_$$n/common; \
+		[ $$rc -eq 0 ] || exit $$rc; \
 	done
 
 # Передать образы в containerd на worker (kubeadm): docker save | ctr import

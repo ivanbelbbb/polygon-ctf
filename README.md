@@ -28,20 +28,31 @@ make clean  TEAM=1 PARTICIPANT=2      # удалить только участн
 
 ## Как участник решает задачу
 
-1. Находит уязвимость в своей задаче (level1: command injection в `/ping?host=`).
-2. Как только задача пишет `[FLAG_SUCCESS]` в `/app/logs/flags.log`, sidecar создаёт `/app/logs/flag.txt`
-   с инструкцией (вместо флага).
-3. Участник читает `flag.txt` через эксплойт, подключается по WebSocket на указанный адрес,
-   отправляет `{"token": "..."}` и получает `{"status": "solved"}`.
+1. Находит уязвимость в своей задаче (уровни 0-5, см. `lvl/README.txt`).
+2. Как только задача пишет `[FLAG_SUCCESS]` в `/app/logs/flags.log`, sidecar создаёт рядом `flag.txt`
+   (инструкция для человека) и `flag.json` (адрес WebSocket и токен для кнопки).
+3. В задаче сама появляется плашка «Уязвимость найдена» с кнопкой **«Сдать задачу»**
+   (в течение пары секунд, обновлять страницу не нужно). Клик открывает WebSocket к sidecar,
+   отправляет токен и получает `{"status": "solved"}`; плашка меняется на «Задача сдана».
+   Состояние хранится в sidecar, после перезагрузки страницы плашка покажет «уже сдано».
+4. Дальше организатор переключает участника на следующий уровень.
 
-Проверить вручную: `python3 pipeline/ws_check.py ws://<IP>:<порт> <токен>`.
+Без кнопки то же самое можно сделать вручную (например, прочитав `flag.txt` через эксплойт):
+`python3 pipeline/ws_check.py ws://<IP>:<порт> <токен>`.
 
 ## Как добавить задачу
 
 1. Добавьте её в `pipeline/tasks.yaml` (`name`, `image`, `port`).
 2. Образ задачи должен писать строку с `[FLAG_SUCCESS]` в `/app/logs/flags.log`, когда её решили.
    Каталог `/app/logs` монтируется автоматически и должен быть доступен на запись пользователю контейнера.
-3. `make deploy TEAM=<N> TASK=<name>`.
+3. Подключите кнопку «Сдать задачу» (общий код лежит в `common/`, `make build-levels` копирует его в контекст сборки):
+   - **Flask:** `from common.solve_flask import register_solve` и `register_solve(app)` после создания `app`;
+     в Dockerfile `COPY --chown=... common/ ./common/`. Шаблоны менять не нужно: скрипт вставляется в каждый HTML-ответ.
+   - **nginx:** `location = /__flag.json { alias /app/logs/flag.json; }`, `sub_filter '</body>' '<script src="/__solve.js"></script></body>';`
+     и копирование `common/solve.js` в `/usr/share/nginx/html/__solve.js` (пример: `lvl/level_1`).
+   - **Другое:** отдавайте `/app/logs/flag.json` по пути `/__flag.json`, а `common/solve.js` по `/__solve.js`
+     и добавьте на страницы `<script src="/__solve.js"></script>`.
+4. `make deploy TEAM=<N> TASK=<name>`.
 
 ## Изоляция
 

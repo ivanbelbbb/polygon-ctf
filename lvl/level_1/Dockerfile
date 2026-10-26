@@ -20,6 +20,7 @@ RUN mkdir -p \
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY --chown=nginx:nginx html/ /usr/share/nginx/html/
+COPY --chown=nginx:nginx common/solve.js /usr/share/nginx/html/__solve.js
 
 USER nginx
 

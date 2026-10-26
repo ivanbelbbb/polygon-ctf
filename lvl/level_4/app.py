@@ -5,7 +5,10 @@ import secrets
 from flask import Flask, Response, request
 from html import escape
 
+from common.solve_flask import register_solve
+
 app = Flask(__name__)
+register_solve(app)
 
 
 FLAG_LOG = os.environ.get("FLAG_LOG", "/app/logs/flags.log")
@@ -23,7 +26,7 @@ def report_success(note):
 
 @app.route("/")
 def index():
-    return "CTF target level 1 \n На этом сайте реализована возможность пинговать сервисы через API\n \
+    return "CTF target level 4 \n На этом сайте реализована возможность пинговать сервисы через API\n \
         попробуй /ping?host=127.0.0.1 \
         найди уязвимость в этом сервисе"
 
