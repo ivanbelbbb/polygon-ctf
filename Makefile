@@ -1,6 +1,6 @@
 .PHONY: setup build build-sidecar build-levels load deploy check status clean
 
-PY ?= python3
+PY ?= ./venv/bin/python3
 TEAM ?=
 PARTICIPANT ?=
 PARTICIPANTS ?=

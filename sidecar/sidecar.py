@@ -62,15 +62,15 @@ def write_instruction() -> None:
             f.write(instruction_text())
         os.chmod(tmp, 0o644)
         os.replace(tmp, INSTRUCTION_FILE)
-        print(f"[helper] флаг найден, инструкция записана в {INSTRUCTION_FILE}", flush=True)
+        print(f"[sidecar] флаг найден, инструкция записана в {INSTRUCTION_FILE}", flush=True)
     except OSError as e:
-        print(f"[helper] не удалось записать инструкцию: {e}", flush=True)
+        print(f"[sidecar] не удалось записать инструкцию: {e}", flush=True)
 
 
 async def watch_log() -> None:
     """Читаем только новые строки (как tail -f), переживаем пересоздание файла."""
     pos = os.path.getsize(LOG_FILE) if os.path.exists(LOG_FILE) else 0
-    print(f"[helper] слежу за {LOG_FILE}, задача={TASK_NAME}", flush=True)
+    print(f"[sidecar] слежу за {LOG_FILE}, задача={TASK_NAME}", flush=True)
     while True:
         await asyncio.sleep(1)
         try:
@@ -87,7 +87,7 @@ async def watch_log() -> None:
                 chunk = f.read()
                 pos = f.tell()
         except OSError as e:
-            print(f"[helper] ошибка чтения лога: {e}", flush=True)
+            print(f"[sidecar] ошибка чтения лога: {e}", flush=True)
             continue
         if any(MARKER in line for line in chunk.splitlines()):
             write_instruction()
@@ -109,9 +109,9 @@ def notify_checker() -> None:
     try:
         urllib.request.urlopen(req, timeout=5).read()
         _notified = True
-        print("[helper] чекер уведомлён", flush=True)
+        print("[sidecar] чекер уведомлён", flush=True)
     except Exception as e:  # чекер недоступен - не роняем сервер
-        print(f"[helper] не удалось уведомить чекер: {e}", flush=True)
+        print(f"[sidecar] не удалось уведомить чекер: {e}", flush=True)
 
 
 async def handler(ws) -> None:
@@ -126,16 +126,16 @@ async def handler(ws) -> None:
 
     if hmac.compare_digest(token, make_token()):
         await ws.send(json.dumps({"status": "solved", "task": TASK_NAME}))
-        print("[helper] верный токен, задача решена", flush=True)
+        print("[sidecar] верный токен, задача решена", flush=True)
         await asyncio.to_thread(notify_checker)
     else:
         await ws.send(json.dumps({"status": "denied"}))
-        print("[helper] неверный токен", flush=True)
+        print("[sidecar] неверный токен", flush=True)
 
 
 async def main() -> None:
     async with serve(handler, "0.0.0.0", WS_PORT):
-        print(f"[helper] WebSocket слушает порт {WS_PORT}", flush=True)
+        print(f"[sidecar] WebSocket слушает порт {WS_PORT}", flush=True)
         await watch_log()
 
 

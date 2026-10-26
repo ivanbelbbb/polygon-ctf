@@ -16,8 +16,6 @@ namespace team-1
 ```bash
 make setup                    # pip install -r requirements.txt
 make build                    # собрать образы ctf-sidecar:1 и challenge-web:level-1
-# загрузить образы на ноды: kind load docker-image ... / minikube image load ... / k3s ctr images import
-# проверьте pod_cidr в pipeline/tasks.yaml (kind: 10.244.0.0/16, k3s: 10.42.0.0/16)
 
 make deploy TEAM=1 PARTICIPANTS=4     # поднять команду 1 на 4 участника
 make check  TEAM=1                    # проверить доступность портов
