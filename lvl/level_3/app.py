@@ -5,7 +5,10 @@ from pathlib import Path
 
 from flask import Flask, render_template, request
 
+from common.solve_flask import register_solve
+
 app = Flask(__name__)
+register_solve(app)
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "polygon.db"

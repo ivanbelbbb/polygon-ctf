@@ -32,18 +32,10 @@ tasks:
     image: challenge-web:level-4
     port: 5000
 
-  - name: level5              # XSS (внутри headless Chromium, 128Mi по умолчанию не хватит)
+  - name: level5              # XSS 
     image: challenge-web:level-5
     port: 5000
     resources:
       requests: {cpu: 200m, memory: 512Mi}
       limits: {cpu: "1", memory: 1Gi}
 
-  # Примеры из старого tasks.yaml. Эти образы сами не пишут [FLAG_SUCCESS]
-  # в /app/logs/flags.log, поэтому sidecar ничего не выдаст, пока их не доработать.
-  # - name: dvwa
-  #   image: vulnerables/web-dvwa:latest
-  #   port: 80
-  # - name: web
-  #   image: docker.io/kimdane/ctf:latest
-  #   port: 3000

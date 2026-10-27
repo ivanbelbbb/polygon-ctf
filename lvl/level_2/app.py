@@ -2,7 +2,10 @@ import os
 
 from flask import Flask, abort, render_template, session
 
+from common.solve_flask import register_solve
+
 app = Flask(__name__)
+register_solve(app)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(32)
 
 LOG_DIR = os.environ.get("LOG_DIR", "/app/logs")

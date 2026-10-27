@@ -13,6 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=appuser:appuser app.py .
+COPY --chown=appuser:appuser common/ ./common/
 
 USER appuser
 

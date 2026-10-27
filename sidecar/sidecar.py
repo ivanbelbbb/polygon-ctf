@@ -1,7 +1,8 @@
 """Sidecar для CTF-задачи (один на под участника).
 
   1. Следит за $LOG_DIR/flags.log. Когда задача пишет туда [FLAG_SUCCESS],
-     кладёт рядом flag.txt с ИНСТРУКЦИЕЙ по подключению вместо флага.
+     кладёт рядом flag.txt с ИНСТРУКЦИЕЙ по подключению вместо флага и
+     flag.json с теми же данными для кнопки «Сдать задачу» (common/solve.js).
   2. Поднимает WebSocket-сервер. Участник шлёт токен из инструкции;
      если токен верный - отвечаем {"status": "solved"} и (если задан CHECKER_URL)
      один раз уведомляем чекер POST-запросом.
@@ -32,9 +33,11 @@ LOG_DIR = os.environ.get("LOG_DIR", "/logs")
 
 LOG_FILE = os.path.join(LOG_DIR, "flags.log")
 INSTRUCTION_FILE = os.path.join(LOG_DIR, "flag.txt")
+JSON_FILE = os.path.join(LOG_DIR, "flag.json")
 MARKER = "[FLAG_SUCCESS]"
 
 _notified = False
+_solved = False
 
 
 def make_token() -> str:
@@ -53,24 +56,50 @@ def instruction_text() -> str:
     )
 
 
-def write_instruction() -> None:
-    # пишем во временный файл и подменяем: работает, даже если flag.txt
+def _atomic_write(path: str, text: str) -> None:
+    # пишем во временный файл и подменяем: работает, даже если файл
     # удалили или пересоздали из контейнера задачи
-    tmp = os.path.join(LOG_DIR, ".flag.tmp")
+    tmp = os.path.join(LOG_DIR, "." + os.path.basename(path) + ".tmp")
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+def write_state() -> None:
+    """flag.txt - инструкция для человека, flag.json - то же для кнопки «Сдать задачу»."""
+    state = {
+        "task": TASK_NAME,
+        "ws": f"ws://{PUBLIC_HOST}:{WS_NODE_PORT}",
+        "ws_port": int(WS_NODE_PORT) if str(WS_NODE_PORT).isdigit() else None,
+        "token": make_token(),
+        "solved": _solved,
+    }
     try:
-        with open(tmp, "w") as f:
-            f.write(instruction_text())
-        os.chmod(tmp, 0o644)
-        os.replace(tmp, INSTRUCTION_FILE)
-        print(f"[helper] флаг найден, инструкция записана в {INSTRUCTION_FILE}", flush=True)
+        _atomic_write(INSTRUCTION_FILE, instruction_text())
+        _atomic_write(JSON_FILE, json.dumps(state, ensure_ascii=False))
+        print(f"[sidecar] инструкция записана в {INSTRUCTION_FILE} и {JSON_FILE}", flush=True)
     except OSError as e:
-        print(f"[helper] не удалось записать инструкцию: {e}", flush=True)
+        print(f"[sidecar] не удалось записать инструкцию: {e}", flush=True)
+
+
+def load_solved() -> bool:
+    """После рестарта контейнера восстанавливаем состояние «сдано» из flag.json."""
+    try:
+        with open(JSON_FILE) as f:
+            return bool(json.load(f).get("solved"))
+    except (OSError, ValueError):
+        return False
 
 
 async def watch_log() -> None:
-    """Читаем только новые строки (как tail -f), переживаем пересоздание файла."""
-    pos = os.path.getsize(LOG_FILE) if os.path.exists(LOG_FILE) else 0
-    print(f"[helper] слежу за {LOG_FILE}, задача={TASK_NAME}", flush=True)
+    """Читаем лог как tail -f, переживаем пересоздание файла.
+
+    Начинаем с начала файла: если контейнер sidecar перезапустился после
+    решения, маркер в логе уже есть и инструкцию нужно восстановить.
+    """
+    pos = 0
+    print(f"[sidecar] слежу за {LOG_FILE}, задача={TASK_NAME}", flush=True)
     while True:
         await asyncio.sleep(1)
         try:
@@ -87,10 +116,10 @@ async def watch_log() -> None:
                 chunk = f.read()
                 pos = f.tell()
         except OSError as e:
-            print(f"[helper] ошибка чтения лога: {e}", flush=True)
+            print(f"[sidecar] ошибка чтения лога: {e}", flush=True)
             continue
         if any(MARKER in line for line in chunk.splitlines()):
-            write_instruction()
+            write_state()
 
 
 def notify_checker() -> None:
@@ -109,9 +138,9 @@ def notify_checker() -> None:
     try:
         urllib.request.urlopen(req, timeout=5).read()
         _notified = True
-        print("[helper] чекер уведомлён", flush=True)
+        print("[sidecar] чекер уведомлён", flush=True)
     except Exception as e:  # чекер недоступен - не роняем сервер
-        print(f"[helper] не удалось уведомить чекер: {e}", flush=True)
+        print(f"[sidecar] не удалось уведомить чекер: {e}", flush=True)
 
 
 async def handler(ws) -> None:
@@ -125,17 +154,22 @@ async def handler(ws) -> None:
         token = str(raw).strip()
 
     if hmac.compare_digest(token, make_token()):
+        global _solved
         await ws.send(json.dumps({"status": "solved", "task": TASK_NAME}))
-        print("[helper] верный токен, задача решена", flush=True)
+        print("[sidecar] верный токен, задача решена", flush=True)
+        _solved = True
+        write_state()  # кнопка после перезагрузки страницы покажет «уже сдано»
         await asyncio.to_thread(notify_checker)
     else:
         await ws.send(json.dumps({"status": "denied"}))
-        print("[helper] неверный токен", flush=True)
+        print("[sidecar] неверный токен", flush=True)
 
 
 async def main() -> None:
+    global _solved
+    _solved = load_solved()
     async with serve(handler, "0.0.0.0", WS_PORT):
-        print(f"[helper] WebSocket слушает порт {WS_PORT}", flush=True)
+        print(f"[sidecar] WebSocket слушает порт {WS_PORT}", flush=True)
         await watch_log()
 
 

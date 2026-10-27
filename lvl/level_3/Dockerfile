@@ -10,6 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=appuser:appuser app.py .
+COPY --chown=appuser:appuser common/ ./common/
 COPY --chown=appuser:appuser templates/ ./templates/
 COPY --chown=appuser:appuser static/ ./static/
 

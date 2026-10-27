@@ -8,7 +8,10 @@ from pathlib import Path
 
 from flask import Flask, redirect, render_template, request, url_for
 
+from common.solve_flask import register_solve
+
 app = Flask(__name__)
+register_solve(app)
 
 BASE_DIR = Path(__file__).resolve().parent
 
