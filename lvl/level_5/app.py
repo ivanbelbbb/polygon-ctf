@@ -123,7 +123,7 @@ def _run_browser_checker():
                 page.expose_function("__polygonSignal", _on_signal)
                 page.add_init_script(f"window.__polygonToken = {token!r};")
 
-                page.goto(SELF_URL, wait_until="networkidle", timeout=5000)
+                page.goto(SELF_URL, wait_until="domcontentloaded", timeout=5000)
                 page.wait_for_timeout(500)
 
                 context.close()
