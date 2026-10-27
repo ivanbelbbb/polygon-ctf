@@ -258,15 +258,23 @@ def build_operator_role_binding(namespace, operator_sa_namespace="ctf-system",
 
 
 def apply(create, patch, name, namespace, manifest):
-    """Создать, а если уже существует - обновить."""
+    """Обновить, а если объекта ещё нет - создать.
+
+    Порядок именно такой (patch-первым), а не наоборот: при create-первым Kubernetes
+    для Service с фиксированным nodePort отвечает не 409 Conflict (уже существует),
+    а 422 Unprocessable Entity (порт уже занят) - проверка занятости порта происходит
+    раньше проверки существования объекта. Из-за этого create-первым падает на КАЖДОМ
+    повторном вызове для уже существующего Service (например, в таймере самолечения
+    Operator'а), а не только при реальном конфликте. patch-первым этой двусмысленности
+    не создаёт: 404 Not Found однозначно означает "объекта ещё нет" для любого типа.
+    """
     from kubernetes.client.rest import ApiException
     try:
-        return create(namespace=namespace, body=manifest)
-    except ApiException as e:
-        if e.status != 409:
-            raise
         return patch(name=name, namespace=namespace, body=manifest)
-
+    except ApiException as e:
+        if e.status != 404:
+            raise
+        return create(namespace=namespace, body=manifest)
 
 def detect_host(core_v1):
     nodes = core_v1.list_node().items
