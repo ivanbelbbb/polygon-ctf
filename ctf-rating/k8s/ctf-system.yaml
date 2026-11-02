@@ -84,12 +84,19 @@ spec:
             readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
 ---
+# NodePort, а не ClusterIP: дашборд (GET /) и GET /leaderboard/* должны быть видны участникам
+# снаружи кластера, а Ingress мы не используем. Это заодно открывает наружу и POST /solved -
+# его защищает не сеть, а HMAC-подпись (см. checker/app.py), так и было задумано.
+# 32767 - верхняя граница диапазона NodePort, выбрана специально подальше от диапазона
+# участников (он растёт от node_port_base=30000 вверх, см. participant_node_ports()
+# в pipeline/manifests.py) - коллизия возможна только если участников станет > ~1380.
 apiVersion: v1
 kind: Service
 metadata: {name: checker, namespace: ctf-system}
 spec:
+  type: NodePort
   selector: {app: checker}
-  ports: [{port: 8000, targetPort: 8000}]
+  ports: [{port: 8000, targetPort: 8000, nodePort: 32767}]
 ---
 # egress команд открыт на весь namespace ctf-system, поэтому БД закрываем здесь:
 # к Postgres можно только из пода checker, к checker только на порт 8000.
@@ -110,5 +117,7 @@ spec:
   podSelector: {matchLabels: {app: checker}}
   policyTypes: [Ingress]
   ingress:
-    - from: [{namespaceSelector: {}}]
+    - from: [{namespaceSelector: {}}]          # трафик от sidecar внутри кластера (POST /solved)
+      ports: [{protocol: TCP, port: 8000}]
+    - from: [{ipBlock: {cidr: "0.0.0.0/0"}}]   # трафик дашборда снаружи кластера через NodePort
       ports: [{protocol: TCP, port: 8000}]
