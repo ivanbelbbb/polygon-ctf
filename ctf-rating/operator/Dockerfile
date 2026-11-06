@@ -10,10 +10,10 @@ COPY ctf-rating/operator/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=appuser:appuser pipeline/manifests.py pipeline/tasks.yaml ./pipeline/
-COPY --chown=appuser:appuser ctf-rating/operator/operator.py ctf-rating/operator/weekly_reset.py ./
+COPY --chown=appuser:appuser ctf-rating/operator/ctf_operator.py ctf-rating/operator/weekly_reset.py ./
 
 ENV TASKS_CONFIG=/app/pipeline/tasks.yaml
 USER 10004
 
 # weekly-reset CronJob переопределяет command на: python weekly_reset.py
-CMD ["kopf", "run", "-A", "--standalone", "operator.py"]
+CMD ["kopf", "run", "-A", "--standalone", "ctf_operator.py"]
