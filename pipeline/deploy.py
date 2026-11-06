@@ -25,7 +25,7 @@ from kubernetes.client.rest import ApiException
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from manifests import (  # noqa: E402
     DEFAULT_CONFIG, apply, build_namespace, build_network_policies, build_operator_role_binding,
-    build_secret, detect_host, labels, load_config,
+    build_secret, cluster_node_ips, detect_host, labels, load_config,
 )
 
 GROUP = "ctf.example.org"
@@ -89,10 +89,12 @@ def deploy_team(team, participants, all_tasks, settings, public_host):
             if e.status != 409:
                 raise
 
-    for pol in build_network_policies(namespace, settings, [t["port"] for t in all_tasks]):
+    node_ips = cluster_node_ips(core_v1)
+    for pol in build_network_policies(namespace, settings, [t["port"] for t in all_tasks],
+                                      node_ips=node_ips):
         apply(net_v1.create_namespaced_network_policy, net_v1.patch_namespaced_network_policy,
               pol["metadata"]["name"], namespace, pol)
-    print("[+] NetworkPolicy применены")
+    print(f"[+] NetworkPolicy применены (egress закрыт от нод кластера: {', '.join(node_ips)})")
 
     for p in range(1, participants + 1):
         apply_custom(custom_api, f"p{p}", namespace, build_participant_challenge(team, p, settings))

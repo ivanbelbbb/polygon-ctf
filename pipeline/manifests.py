@@ -10,7 +10,9 @@ import yaml
 WS_PORT = 8765
 TASK_LOG_DIR = "/app/logs"
 HELPER_LOG_DIR = "/logs"
-PRIVATE_NETS = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+PRIVATE_NETS = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+                "169.254.0.0/16",  # link-local - на облачных провайдерах часто metadata-эндпоинт
+                "100.64.0.0/10"]   # carrier-grade NAT (RFC 6598), не входит в обычные "частные" диапазоны
 NAME_RE = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tasks.yaml")
 
@@ -195,9 +197,23 @@ def build_service(task, name, namespace, team, participant, task_np, ws_np, extr
     }
 
 
-def build_network_policies(namespace, settings, task_ports):
+def cluster_node_ips(core_v1):
+    """Все IP всех нод кластера (Internal и External) - чтобы исключить их из egress подов задач.
+    Работает на любом кластере: ничего не хардкодится, адреса берутся из Kubernetes API во время
+    деплоя, поэтому один и тот же код подходит и для двух VPS, и для кластера с другими адресами."""
+    ips = set()
+    for n in core_v1.list_node().items:
+        for a in n.status.addresses or []:
+            if a.type in ("InternalIP", "ExternalIP"):
+                ips.add(a.address)
+    return sorted(ips)
+
+
+def build_network_policies(namespace, settings, task_ports, node_ips=()):
     """Ingress: свой namespace + внешний трафик на порты задачи/WebSocket, но не из подов других команд.
-    Egress: свой namespace + DNS (+ чекер, + интернет без частных сетей)."""
+    Egress: свой namespace + DNS (+ чекер, + интернет без частных сетей и без самих нод кластера -
+    иначе скомпрометированная задача могла бы со своего NodePort достучаться через публичный IP
+    worker'а до NodePort другой команды или до API-сервера на master, в обход изоляции namespace)."""
     pod_cidr = settings["pod_cidr"]
     tcp = lambda p: {"protocol": "TCP", "port": p}
 
@@ -229,6 +245,10 @@ def build_network_policies(namespace, settings, task_ports):
         net = ipaddress.ip_network(pod_cidr)
         if not any(net.subnet_of(ipaddress.ip_network(p)) for p in PRIVATE_NETS):
             excluded.append(pod_cidr)
+        for ip in node_ips:
+            cidr = f"{ip}/32"
+            if cidr not in excluded:
+                excluded.append(cidr)
         egress_rules.append({"to": [{"ipBlock": {"cidr": "0.0.0.0/0", "except": excluded}}]})
 
     egress = {
