@@ -1,0 +1,67 @@
+# Ночной дамп Postgres на диск worker (/var/lib/ctf-postgres-backups), хранит 14 последних
+# дней. Не защищает от потери самого диска worker, только от человеческой ошибки
+# (случайный DELETE, кривая миграция схемы, сломанное обновление) - дамп можно накатить
+# обратно даже если текущая БД уже испорчена.
+#
+# Восстановление из дампа:
+#   gunzip -c /var/lib/ctf-postgres-backups/ctf-2026-11-06.sql.gz | \
+#     kubectl -n ctf-system exec -i deploy/postgres -- psql -U ctf ctf
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: pg-backup, namespace: ctf-system}
+spec:
+  schedule: "0 2 * * *"          # каждый день в 02:00 UTC
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata: {labels: {app: pg-backup}}
+        spec:
+          nodeSelector: {kubernetes.io/hostname: worker}
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          initContainers:
+            - name: fix-perms
+              # hostPath создаётся kubelet'ом от root с правами 0755 - контейнеру с runAsUser: 999
+              # писать туда нечем, пока кто-то не отдаст ему права. Тот же приём, что и для
+              # shared-logs в pipeline/manifests.py (init-контейнер от root, затем смена владельца).
+              image: postgres:16-alpine
+              command: ["/bin/sh", "-c", "mkdir -p /backups && chown 999:999 /backups"]
+              volumeMounts:
+                - {name: backups, mountPath: /backups}
+          containers:
+            - name: pg-backup
+              image: postgres:16-alpine     # тот же образ, что уже используется для Postgres
+              imagePullPolicy: IfNotPresent
+              env:
+                - {name: PGHOST, value: postgres}
+                - {name: PGUSER, value: ctf}
+                - {name: PGDATABASE, value: ctf}
+                - name: PGPASSWORD
+                  valueFrom: {secretKeyRef: {name: pg, key: password}}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  DATE=$(date -u +%F)
+                  FILE="/backups/ctf-$DATE.sql.gz"
+                  pg_dump | gzip > "$FILE"
+                  find /backups -name 'ctf-*.sql.gz' -mtime +14 -delete
+                  echo "[+] backup saved: $FILE ($(du -h "$FILE" | cut -f1))"
+              volumeMounts:
+                - {name: backups, mountPath: /backups}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 999        # пользователь postgres внутри образа postgres:16-alpine
+                allowPrivilegeEscalation: false
+                capabilities: {drop: [ALL]}
+          volumes:
+            - name: backups
+              hostPath: {path: /var/lib/ctf-postgres-backups, type: DirectoryOrCreate}

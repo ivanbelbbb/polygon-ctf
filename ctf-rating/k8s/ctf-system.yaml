@@ -99,7 +99,7 @@ spec:
   ports: [{port: 8000, targetPort: 8000, nodePort: 32767}]
 ---
 # egress команд открыт на весь namespace ctf-system, поэтому БД закрываем здесь:
-# к Postgres можно только из пода checker, к checker только на порт 8000.
+# к Postgres можно только из пода checker (решения) и pg-backup (ночной дамп), больше ниоткуда.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: postgres-only-from-checker, namespace: ctf-system}
@@ -107,7 +107,9 @@ spec:
   podSelector: {matchLabels: {app: postgres}}
   policyTypes: [Ingress]
   ingress:
-    - from: [{podSelector: {matchLabels: {app: checker}}}]
+    - from:
+        - {podSelector: {matchLabels: {app: checker}}}
+        - {podSelector: {matchLabels: {app: pg-backup}}}
       ports: [{protocol: TCP, port: 5432}]
 ---
 apiVersion: networking.k8s.io/v1
